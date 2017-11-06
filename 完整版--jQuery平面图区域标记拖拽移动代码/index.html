@@ -1,0 +1,263 @@
+<!doctype html>
+<html>
+<title>jQuery平面图区域标记拖拽移动代码</title>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script type="text/javascript" src="js/jquery.min.js" ></script>
+<script type="text/javascript" src="js/layer/layer.js"></script>
+<script type="text/javascript" src="js/context/context.js"></script>
+<script type="text/javascript" src="js/drag.js" ></script>
+<link rel="stylesheet" type="text/css" href="js/context/context.standalone.css">
+<style type="text/css">
+html,body{margin:0;padding:0;font:14px/1.5em simsun;overflow:hidden;}
+#canvas{position:absolute;left:0px;top:0px;z-index:9;border:2px dashed #ccc;padding:10px;background:#fff;}
+.transparent{filter:alpha(opacity=50);-moz-opacity:0.5;-khtml-opacity:0.5;opacity:0.5;}
+.box{width:200px;height:100px;cursor:move;position:absolute;top:30px;left:30px;z-index:99;}
+.box .bg{width:100%;height:100%;background-color:orange;}
+.box .coor{width:10px;height:10px;overflow:hidden;cursor:se-resize;position:absolute;right:0;bottom:0;background-color:red;}
+.box .content{position:absolute;left:50%;top:50%;z-index:99;text-align:center;font:bold 14px/1.5em simsun;}
+
+#debug{position:absolute;right:10px;top:10px;z-index:88;border:1px solid #ccc;width:100px;height:100px;background:#fff;}
+#toolbar{position:absolute;left:10px;top:10px;z-index:88;}
+
+</style>
+</head>
+<body class="list">
+<!-- <pre id="debug"></pre> -->
+<div id="toolbar">
+	<input type="button" value="添加区域" class="btn" id="btn_add" />
+	<input type="button" value="锁定区域" class="btn" id="btn_lock" />
+	<input type="button" value="获取数据" class="btn" id="btn_save" />
+</div>
+<div id="canvas">
+	<img src="demo_picture.jpg" />
+</div>
+
+<script>
+$(function(){
+	//初始化计数器
+	var num = 0;
+	//区块锁定标识
+	var lock = false;
+	//加载layer拓展
+	layer.config({
+	    extend: 'extend/layer.ext.js'
+	});
+	//右键菜单参数
+	context.init({
+	    fadeSpeed: 100,
+	    filter: function ($obj){},
+	    above: 'auto',
+	    preventDoubleContext: true,
+	    compress: false
+	});
+	//调试输出方法
+	function debug(msg){
+		$("#debug").text(msg);
+	}
+	function createBox(data){
+		var dataId = data.id || '';
+		var value = data.text || '';
+		var color = data.color || '';
+		var height = data.height || 0;
+		var width = data.width || 0;
+		var pageX = data.pageX || 0;
+		var pageY = data.pageY || 0;
+		
+		//更新计数器并记录当前计数
+		var curNum = num++;
+		//创建区域块
+		var pos = $("#canvas").position();
+		var box = $('<div class="box" rel="'+curNum+'" dataId="'+dataId+'"><pre class="content">'+value+'</pre><div class="bg transparent" style="background-color:'+color+'"></div><div class="coor transparent"></div></div>').css({
+			width : width,
+			height : height,
+			top : pageY > 0 ? pageY : (pos.top > 0 ? 0 : pos.top * -1 + 50),
+			left : pageX > 0 ? pageX : (pos.left > 0 ? 0 : pos.left * -1 + 30)
+		}).appendTo("#canvas");
+		
+		//计算文本位置
+		box.find('.content').css({
+			marginLeft : box.find('.content').width()/2*-1,
+			marginTop : box.find('.content').height()/2*-1
+		});
+		//创建右键菜单
+		context.attach('.box[rel='+curNum+']', [
+			{header: '操作'},
+			{text: '编辑区域说明', action: function(e){
+			    	e.preventDefault();
+			    	layer.prompt({
+						title: '请输入区域说明',
+						formType: 2,
+						value: $('.box[rel='+curNum+'] .content').text()
+					}, function(value, index, elem){
+						layer.close(index);
+						var curCont = $('.box[rel='+curNum+'] .content');
+						curCont.text(value).css({
+							marginLeft : curCont.width()/2*-1,
+							marginTop : curCont.height()/2*-1
+						});
+					});
+			    }
+			},
+			{text: '更改区域尺寸', action: function(e){
+					e.preventDefault();
+					layer.prompt({
+						title: '请输入区域尺寸（宽,高），最小值：30',
+						formType: 0,
+						value: $('.box[rel='+curNum+']').width()+","+$('.box[rel='+curNum+']').height()
+					}, function(value, index, elem){
+						var reg = /^[0-9]+,[0-9]+$/;
+						if(!reg.test(value)){
+							alert('输入格式不正确，例：100,200');
+							return;
+						}
+						var size = value.split(',');
+						var box = $('.box[rel='+curNum+']');
+						box.css({
+							width : size[0] < 30 ? 30 : size[0],
+							height : size[1] < 30 ? 30 : size[1]
+						});
+						layer.close(index);
+					});
+				}
+			},
+			{text: '删除区域', action: function(e){
+			    	e.preventDefault();
+					$('.box[rel='+curNum+']').remove();
+			    }
+			},
+			{divider: true},
+			{header: '更改颜色'},
+			{text: '<font color="orange">橙色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'orange');
+			    }
+			},
+			{text: '<font color="red">红色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'red');
+			    }
+			},
+			{text: '<font color="blue">蓝色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'blue');
+			    }
+			},
+			{text: '<font color="green">绿色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'green');
+			    }
+			},
+			{text: '<font color="purple">紫色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'purple');
+			    }
+			},
+			{text: '<font color="yellow">黄色</font>', action: function(e){
+			    	e.preventDefault();
+			    	$('.box[rel='+curNum+'] .bg').css('background-color', 'yellow');
+			    }
+			}
+		]);
+	}
+	//添加区域
+	$("#btn_add").click(function(){
+		//弹出区域说明输入框
+		layer.prompt({
+			title: '请输入区域说明',
+			formType: 2 //0:input,1:password,2:textarea
+		}, function(value, index, elem){
+			layer.close(index);
+			createBox({
+				text : value,
+				width : 200,
+				height : 100
+			});
+		});
+	});
+	//锁定区域
+	$('#btn_lock').click(function(){
+		if(lock){
+			$(this).val("锁定区域");
+			lock = false;
+			$('.box .coor').show();
+		}else{
+			$(this).val("解锁区域");
+			lock = true;
+			$('.box .coor').hide();
+		}
+	});
+	//获取所有区块
+	$('#btn_save').click(function(){
+		var data = [];
+		$('.box').each(function(){
+			var box = {};
+			box['id'] = $(this).attr('dataId');
+			box['text'] = $(this).find('.content').text();
+			box['color'] = $(this).find('.bg').css('background-color');
+			box['height'] = $(this).height();
+			box['width'] = $(this).width();
+			box['pageX'] = $(this).position().left;
+			box['pageY'] = $(this).position().top;
+			console.dir(box);
+			data.push(box);
+		});
+	});
+	//创建拖拽方法
+	$("#canvas").mousedown(function(e){
+		var canvas = $(this);
+	    e.preventDefault();
+	    var pos = $(this).position();
+	    this.posix = {'x': e.pageX - pos.left, 'y': e.pageY - pos.top};
+	    $.extend(document, {'move': true, 'move_target': this, 'call_down' : function(e, posix){
+	    	canvas.css({
+	    		'cursor': 'move',
+	    		'top': e.pageY - posix.y,
+				'left': e.pageX - posix.x
+			});
+	    }, 'call_up' : function(){
+	    	canvas.css('cursor', 'default');
+	    }});
+	}).on('mousedown', '.box', function(e) {
+		if(lock) return;
+	    var pos = $(this).position();
+	    this.posix = {'x': e.pageX - pos.left, 'y': e.pageY - pos.top};
+	    $.extend(document, {'move': true, 'move_target': this});
+	    e.stopPropagation();
+	}).on('mousedown', '.box .coor', function(e) {
+		var $box = $(this).parent();
+	    var posix = {
+	            'w': $box.width(), 
+	            'h': $box.height(), 
+	            'x': e.pageX, 
+	            'y': e.pageY
+	        };
+	    $.extend(document, {'move': true, 'call_down': function(e) {
+	    	$box.css({
+	            'width': Math.max(30, e.pageX - posix.x + posix.w),
+	            'height': Math.max(30, e.pageY - posix.y + posix.h)
+	        });
+	    }});
+	    e.stopPropagation();
+	});
+	//测试加载
+	var loadData = [{id : 1001,text : "C16\n16.5",color : "rgb(255, 0, 0)",height : 70,width : 77,pageX : 627,pageY : 364},
+	                {id : 1002,text : "C17\n16.18",color : "rgb(255, 255, 0)",height : 70,width : 77,pageX : 709,pageY : 364},
+	                {id : 1003,text : "C18\n16.08",color : "rgb(128, 0, 128)",height : 70,width : 77,pageX : 790,pageY : 364},
+	                {id : 1004,text : "C19\n16.08",color : "rgb(0, 128, 0)",height : 70,width : 77,pageX : 870,pageY : 364},
+	                {id : 1005,text : "C20\n16.5",color : "rgb(0, 0, 255)",height : 70,width : 77,pageX : 627,pageY : 439},
+	                {id : 1006,text : "C21\n16.18",color : "rgb(255, 165, 0)",height : 70,width : 77,pageX : 709,pageY : 439},
+	                {id : 1007,text : "C22\n16.08",color : "rgb(255, 165, 0)",height : 70,width : 77,pageX : 870,pageY : 439},
+	                {id : 1008,text : "C23\n16.08",color : "rgb(255, 165, 0)",height : 70,width : 77,pageX : 789,pageY : 439}];
+	$.each(loadData, function(i, row){
+		createBox(row);
+	});
+});
+</script>
+
+<div style="text-align:center;margin:50px 0; font:normal 14px/24px 'MicroSoft YaHei';">
+<p>适用浏览器：IE8、360、FireFox、Chrome、Safari、Opera、傲游、搜狗、世界之窗.</p>
+<p>来源：<a href="http://www.lanrenzhijia.com/" target="_blank">懒人素材</a></p>
+</div>
+</body>
+</html>
