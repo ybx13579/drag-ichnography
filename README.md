@@ -1,5 +1,5 @@
 # drag-ichnography
-平面图拖拽  darg.js
+平面图拖拽  drag.js
  
 > **如有帮助谢谢star**   :star::star::star::star::star: 
  
